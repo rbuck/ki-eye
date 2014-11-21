@@ -1,0 +1,11 @@
+#!/bin/sh
+
+cp hosts.0 hosts
+./foreachhost ./shape del_partition
+
+cp hosts.region_one hosts
+./foreachhost DST_ADDR=10.3.90.2 ./shape add_partition
+
+cp hosts.region_two hosts
+./foreachhost DST_ADDR=10.3.89.2 ./shape add_partition
+

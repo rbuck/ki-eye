@@ -1,0 +1,174 @@
+#!/bin/bash
+set -e
+
+ME=`basename $0`
+SCRIPT_DIR=`dirname $0`
+
+: ${SELF_ROOT:=`dirname ${SCRIPT_DIR}`}
+pushd ${SELF_ROOT} >/dev/null
+SELF_ROOT=`pwd`
+popd >/dev/null
+
+: ${UNAME:="$USER"}
+: ${PASSWD:="$UNAME"}
+: ${KEYFILE:="id_rsa_$UNAME"}
+: ${SALT:=""}
+: ${ENCRYPTED:=""}
+
+function verify()
+{
+    if [[ -z ${UNAME} ]];
+    then
+        echo "You must specify the username using a UNAME variable."
+        exit
+    fi
+}
+
+function salt()
+{
+    if [[ -z ${SALT} ]];
+    then
+        SALT=$(openssl rand -base64 6 | tr '+' '.')
+        echo "SALT=${SALT}"
+    fi
+}
+
+function create_key()
+{
+    ssh-keygen -t rsa -b 1024 -N '' -f id_rsa -C "${UNAME}"
+    cat id_rsa.pub > authorized_keys
+}
+
+function delete_key()
+{
+    rm -f id_rsa*
+    rm -f authorized_keys
+}
+
+function add()
+{
+    verify
+    salt
+    
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo useradd --create-home --user-group -s /bin/bash -p \$(mkpasswd -m sha-512 ${PASSWD} ${SALT}) ${UNAME}"
+
+    # create the ssh directory if it does not exist
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mkdir /home/${UNAME}/.ssh/"
+
+    # copy the key to the target server
+    scp ${SELF_ROOT}/../artifacts/authorized_keys ${USER}@${TARGET_HOST}:/tmp/
+    scp ${SELF_ROOT}/../artifacts/known_hosts ${USER}@${TARGET_HOST}:/tmp/
+    scp ${SELF_ROOT}/../artifacts/id_rsa* ${USER}@${TARGET_HOST}:/tmp/
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/id_rsa /home/${UNAME}/.ssh/id_rsa"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/id_rsa.pub /home/${UNAME}/.ssh/id_rsa.pub"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/authorized_keys /home/${UNAME}/.ssh/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/known_hosts /home/${UNAME}/.ssh/"
+
+    # set the kep permissions and ownership
+    
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 700 /home/${UNAME}/.ssh"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 600 /home/${UNAME}/.ssh/id_rsa"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 644 /home/${UNAME}/.ssh/id_rsa.pub"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 644 /home/${UNAME}/.ssh/authorized_keys"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 644 /home/${UNAME}/.ssh/known_hosts"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chown -R ${UNAME}:${UNAME} /home/${UNAME}/.ssh"
+
+    # clean up the temporary key files
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f /tmp/id_rsa*"
+}
+
+function add_sudo()
+{
+    ADD_SUDOERS_SCRIPT=addsudoers
+    cat << __EOF__ > ${ADD_SUDOERS_SCRIPT}
+#!/bin/bash
+echo "${UNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+__EOF__
+    chmod a+x ${ADD_SUDOERS_SCRIPT}
+
+    scp ${ADD_SUDOERS_SCRIPT} ${USER}@${TARGET_HOST}:/tmp/
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo /tmp/${ADD_SUDOERS_SCRIPT}"
+    ssh -n -l ${USER} ${TARGET_HOST} "rm -f /tmp/${ADD_SUDOERS_SCRIPT}"
+
+    rm -f ${ADD_SUDOERS_SCRIPT}
+}
+
+function del()
+{
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo userdel ${UNAME}"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /home/${UNAME}"
+}
+
+function help()
+{
+  cat <<- __EOF__
+
+  DESCRIPTION
+
+  The ${ME} script manages user accounts on Linux. With the script you can add
+  users, delete users, and set passwords across a set of hosts so that each has
+  identical credentials and passwordless login made possible with SSH keys. The
+  tool is used as follows to provision a new user.
+
+  EXECUTION
+
+  First, for each host you provision an account you must to use the same salted
+  hash so that you end up with the same shadow credentials on each host. To do
+  this run the salt command first to generate a salt value for encrypting of
+  passwords:
+
+  ${ME} salt
+
+  Next, if you want to enable passwordless ssh access spanning hosts, you will
+  need to generate SSH keys. Three things are needed; an id_rsa, id_rsa.pub,
+  and authorized_keys files in the current directory. The following command
+  will generate these:
+
+  UNAME=foo ${ME} create_key
+
+  At this point you have all that you need to create identical user credentials
+  across each host listed in a hosts file. To do so, using the SALT output from
+  the prior execution of the salt command, run the following:
+
+  foreachhost UNAME=foo SALT=UNaRge2j1n.94aoR PASSWD=bar ${ME} add
+
+  At this point each host has identical credentials for a user but the user
+  does not have SUDO priviledges. If you wish to add SUDO priviledges you now
+  have to run the following command:
+
+  foreachhost UNAME=foo ${ME} add_sudo
+
+  To delete an existing user and their home directory simply run the following
+  command:
+
+  foreachhost UNAME=foo ${ME} del
+
+__EOF__
+}
+
+if [ $# -eq 0 ]; then
+    echo -e "\nSyntax:\n\t${ME} [<command> ...]\n\
+\nCommands include:\
+\n\t help         displays extended help and explanations\
+\n\t create_key   generate an RSA SSH key\
+\n\t delete_key   delete the locally generated SSH credentials\
+\n\t salt         generate salt for a password\
+\n\t add          add a user\
+\n\t del          delete a user\
+\n\t add_sudo     adds SUDO perms for the user\
+\n\t exists       check if the user exists\
+\n"
+fi
+
+while [ $# -gt 0 ]
+do
+    CMD=$1
+    time {
+      ${CMD}
+      shift
+    }
+    echo ""
+done
+
+exit

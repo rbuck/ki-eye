@@ -1,0 +1,534 @@
+#!/bin/bash
+
+set -e
+
+ME=`basename $0`
+SCRIPT_DIR=`dirname $0`
+
+: ${SELF_ROOT:=`dirname ${SCRIPT_DIR}`}
+pushd ${SELF_ROOT} >/dev/null
+SELF_ROOT=`pwd`
+popd >/dev/null
+
+: ${NUODB_HOME:="/opt/nuodb"}
+: ${BROKER_HOST:="p116"}
+: ${TARGET_HOST:="$BROKER_HOST"}
+: ${BROKER_PORT:="48004"}
+: ${BROKER_DOMAIN:="domain"}
+: ${BROKER_DOMAIN_PASSWORD:="bird"}
+: ${DATABASE_NAME:="csg"}
+: ${DATABASE_SCHEMA="csg"}
+: ${DATABASE_USER:="dba"}
+: ${DATABASE_PASSWORD="dba"}
+: ${NODE_PORT_RANGE:="48010,48099"}
+: ${STORAGE_DIR:="/var/opt/nuodb"}
+: ${ARCHIVE_DIR:="$STORAGE_DIR/production-archives"}
+: ${ARCHIVE_URL:="$ARCHIVE_DIR/$DATABASE_NAME"}
+: ${JOURNAL_URL:="/ssd/$DATABASE_NAME"}
+: ${TMP_LOGS_DIR:="/tmp"}
+: ${STATS_LOGS_DIR:="/tmp/$USER-stats"}
+: ${NUODB_LOGS_DIR:="/var/log/nuodb"}
+: ${MANAGE_LOG_FILE:="$TMP_LOGS_DIR/$USER-runit.log"}
+: ${ENGINE_ARGS:="--mem 8G --commit region:2 --verbose info,warn,net,error"}
+: ${NUODB_MANAGER_JAR:="$NUODB_HOME/jar/nuodbmanager.jar"}
+: ${ARCHIVE_ZIP:="/tmp/$USER-archive.tgz"}
+#: ${NUODB_INSTALL_PACKAGE:="nuodb-2.0.4.linux.x64.deb"}
+#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.13-linux.x86_64.deb"}
+#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.14-linux.x86_64.deb"}
+#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.15-linux.x86_64.deb"}
+: ${NUODB_INSTALL_PACKAGE:="nuodb_2.1.0.rel21.66.deb"}
+
+if [[ -e "${SCRIPT_DIR}/nuodbmanager.jar" ]]
+then
+    NUODB_MANAGER_JAR=${SCRIPT_DIR}/nuodbmanager.jar
+fi
+
+NUODB_MANAGER_RUN="java -jar ${NUODB_MANAGER_JAR} --user ${BROKER_DOMAIN} --password ${BROKER_DOMAIN_PASSWORD} --broker ${BROKER_HOST}:${BROKER_PORT}"
+NUODB_MANAGER_RUN_COMMAND="${NUODB_MANAGER_RUN} --command"
+
+NUODB_ENGINE=${NUODB_HOME}/bin/nuodb
+
+mkdir -p ${STATS_LOGS_DIR}
+SYS_LOAD_LOG=${STATS_LOGS_DIR}/stat_load.log
+CPU_STAT_LOG=${STATS_LOGS_DIR}/stat_cpu.log
+DISK_STAT_LOG=${STATS_LOGS_DIR}/stat_disk.log
+NET_STAT_LOG=${STATS_LOGS_DIR}/stat_net.log
+
+# #############################################################################
+# FUNCTIONS FOR DIAGNOSIS
+# #############################################################################
+
+#
+# Gather gc info from nuodb, this ought to be piped into a file, run for a
+# minute or so, then terminated.
+#
+function loggcinfo()
+{
+    ${NUODB_MANAGER_RUN_COMMAND} "log database ${DATABASE_NAME} categories gc" | tee -a ${MANAGE_LOG_FILE}
+}
+
+#
+# For the target host force a core dump of all nuodb processes. This will kill
+# all running databases, so do not run this unless you are certain you have a
+# scenario for which you want to gather information for nuodb support.
+#
+function dumpcores()
+{
+    echo "Forcefully creating core dumps on ${TARGET_HOST}"
+
+#    ps -ef | awk '$8=="/opt/nuodb/bin/nuodb" {print $2}' | xargs sudo gcore -o nuodb-core $@
+    ssh -n -l ${USER} ${TARGET_HOST} "ps -ef | awk '$8==\"/opt/nuodb/bin/nuodb\" {print $2}' | xargs sudo gcore -o /var/log/nuodb/crash/nuodb-core $@"
+
+    #ssh -n -l ${USER} ${TARGET_HOST} "sudo pkill -SIGABRT nuosql"
+    #ssh -n -l ${USER} ${TARGET_HOST} "sudo pkill -SIGABRT nuodb"
+}
+
+#
+# Now gather those core dumps and zip them up so that they can be provided to
+# support.
+#
+function getdumps()
+{
+    echo "Gathering crash-log from ${TARGET_HOST}"
+
+    mkdir -p ~/crash-logs/
+    ssh -n -l ${USER} ${TARGET_HOST} "rm -fr ~/crash-logs"
+    ssh -n -l ${USER} ${TARGET_HOST} "mkdir ~/crash-logs"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo tar czvf ~/crash-logs/${TARGET_HOST}-${TARGET_ROLE}.tgz /var/log/nuodb"
+    scp ${USER}@${TARGET_HOST}:~/crash-logs/*.tgz ~/crash-logs/
+}
+
+# #############################################################################
+# - DANGER ZONE - FUNCTIONS FOR MANAGING NUODB DEPLOYMENTS / INSTALLATIONS
+# #############################################################################
+
+function stopagent()
+{
+    echo "Stopping the agent on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo service nuoagent stop"
+    sleep 5
+}
+
+function saveconfig()
+{
+    echo "Saving configuration changes of a nuodb installation on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f /tmp/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cp /opt/nuodb/etc/default.properties /tmp/"
+}
+
+function replacenuodb()
+{
+    echo "Replacing NuoDB on ${TARGET_HOST}"
+
+    NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /tmp/${NUODB_INSTALL_PACKAGE}"
+    scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /etc/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /opt/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/opt/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/log/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+}
+
+function upgradenuodb()
+{
+    echo "Upgrading NuoDB on ${TARGET_HOST}"
+
+    NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
+    scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+}
+
+function pushconfig()
+{
+    echo "Pushing configuration changes to a nuodb installation to ${TARGET_HOST}"
+
+    NUODB_CONFIG_PACKAGE="${SELF_ROOT}/../artifacts/nuodb.config"
+    scp ${NUODB_CONFIG_PACKAGE} ${USER}@${TARGET_HOST}:/tmp
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/nuodb.config /opt/nuodb/etc/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /opt/nuodb/etc/nuodb.config"
+
+    #NUODB_LICENSE_PACKAGE="${SELF_ROOT}/../artifacts/default.license"
+    #scp ${NUODB_LICENSE_PACKAGE} ${USER}@${TARGET_HOST}:/tmp
+    #ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/default.license /etc/nuodb/cfg/"
+    #ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /etc/nuodb/cfg/default.license"
+
+    NUODB_BALANCER_PACKAGE="${SELF_ROOT}/../artifacts/balancer.jar"
+    scp ${NUODB_BALANCER_PACKAGE} ${USER}@${TARGET_HOST}:/tmp
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mkdir -p /opt/nuodb/plugin/agent/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/balancer.jar /opt/nuodb/plugin/agent/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /opt/nuodb/plugin/agent/balancer.jar"
+}
+
+function restoreconfig()
+{
+    echo "Restoring configuration changes of a nuodb installation on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cp /tmp/default.properties /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f /tmp/default.properties"
+}
+
+function showconfig()
+{
+    echo "Show operational configuration of a nuodb installation on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "broker ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "peer ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "region ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "balancer ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "enableAutomation ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "enableAutomationBootstrap ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "verbose"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "ping-timeout"
+}
+
+function setregionname()
+{
+    echo "Setting the agent region name on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^#region/ s/#region =.*/region =/' /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^region =.*/ s/=.*/= ${TARGET_REGION}/' /opt/nuodb/etc/default.properties"
+}
+
+function setbalancer()
+{
+    echo "Setting the agent balancer on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^#balancer/ s/#balancer =.*/balancer =/' /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^balancer =.*/ s/=.*/= RegionBalancer/' /opt/nuodb/etc/default.properties"
+}
+
+function setdomainpassword()
+{
+    echo "Setting the agent domain password on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^#domainPassword/ s/#domainPassword =.*/domainPassword =/' /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^domainPassword =.*/ s/=.*/= ${BROKER_DOMAIN_PASSWORD}/' /opt/nuodb/etc/default.properties"
+}
+
+function enable_nfd()
+{
+    echo "Enabling NFD on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^# ping-timeout.*/ s/^# //' /opt/nuodb/etc/nuodb.config"
+}
+
+function disable_nfd()
+{
+    echo "Disabling NFD on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^ping-timeout.*/ s/^/# /' /opt/nuodb/etc/nuodb.config"
+}
+
+function startagent()
+{
+    echo "Starting the agent on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo service nuoagent start ${AGENT_ARGS}"
+    sleep 2
+}
+
+# #############################################################################
+# FUNCTIONS FOR TESTS
+# #############################################################################
+
+function deployapp()
+{
+    if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "TE" ]]
+    then
+
+        APP_DEPLOYMENT="jdbc-sample"
+        APP_PACKAGE="${APP_DEPLOYMENT}.tgz"
+        PACKAGE_PATH="${SELF_ROOT}/../artifacts/${APP_PACKAGE}"
+
+        echo "Deploying to ${TARGET_HOST}"
+
+        ssh -n -l ${USER} ${TARGET_HOST} "rm -fr ${APP_DEPLOYMENT}"
+        ssh -n -l ${USER} ${TARGET_HOST} "rm -f ${APP_PACKAGE}"
+        scp ${PACKAGE_PATH} ${USER}@${TARGET_HOST}:
+        ssh -n -l ${USER} ${TARGET_HOST} "tar xzf ${APP_PACKAGE}"
+
+    fi
+}
+
+#
+# Optionally one can push pre-canned archives to each test host target to avoid
+# otherwise unnecessary database creation time for each round of testing.
+#
+function pusharchive()
+{
+    if [[ "${TARGET_ROLE}" == "SM" ]]
+    then
+        echo "Pushing an archive copy to ${TARGET_HOST}"
+
+        scp ${ARCHIVE_ZIP} ${USER}@${TARGET_HOST}:/tmp/
+
+        if [[ "${USE_JOURNAL_DIR}" == "1" ]]
+        then
+            ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${JOURNAL_URL}"
+            ssh -n -l ${USER} ${TARGET_HOST} "sudo mkdir ${JOURNAL_URL}"
+            ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod -R a+rwx ${JOURNAL_URL}"
+            ssh -n -l ${USER} ${TARGET_HOST} "sudo chown -R nuodb:nuodb ${JOURNAL_URL}"
+        fi
+
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${ARCHIVE_URL}"
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo tar xzf ${ARCHIVE_ZIP} -C ${ARCHIVE_DIR}"
+        ssh -n -l ${USER} ${TARGET_HOST} 'sudo chmod -R a+rwx /var/opt/nuodb'
+        ssh -n -l ${USER} ${TARGET_HOST} 'sudo chown -R nuodb:nuodb /var/opt/nuodb'
+
+    fi
+}
+
+#
+# Start the nuodb interactive command line management tool.
+#
+function startmgr()
+{
+    echo "[INFO] Starting nuodb manager" | tee -a ${MANAGE_LOG_FILE}
+    echo -e "\tExecute: ${NUODB_MANAGER_RUN}"
+    ${NUODB_MANAGER_RUN} | tee -a ${MANAGE_LOG_FILE}
+    sleep 1
+}
+
+#
+# Start the specified storage manager.
+#
+function startsm()
+{
+    if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "SM" ]]
+    then
+
+        if [[ "${USE_JOURNAL_DIR}" == "1" ]]
+        then
+          SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable --journal-dir ${JOURNAL_URL}"
+        else
+          SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable"
+        fi
+
+        echo "[INFO] Starting archive manager and recreating database" | tee -a ${MANAGE_LOG_FILE}
+        if [[ -z ${FORCE_INIT} ]]
+        then
+            echo "[INFO] Restarting storage manager with existing archive" | tee -a ${MANAGE_LOG_FILE}
+            echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize no options '${SM_ARGS}'"
+            ${NUODB_MANAGER_RUN_COMMAND} "start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize no options '${SM_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
+            sleep 2
+        else
+            #ssh -n -l ${USER} ${TARGET_HOST} "rm -fr ${ARCHIVE_URL}"
+            echo "Ensure the following directory exists: ${ARCHIVE_DIR}"
+            echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize yes options '${SM_ARGS}'"
+            ${NUODB_MANAGER_RUN_COMMAND} "start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize yes options '${SM_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
+            sleep 2
+        fi
+
+    fi
+}
+
+#
+# Start the specified transaction engine.
+#
+function startte()
+{
+    if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "TE" ]]
+    then
+        echo "[INFO] Starting transaction engine" | tee -a ${MANAGE_LOG_FILE}
+
+        TE_ARGS="--dba-user ${DATABASE_USER} --dba-password ${DATABASE_PASSWORD} ${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/te-${DATABASE_NAME}.log"
+        echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process te host ${TARGET_HOST} database ${DATABASE_NAME} options '${TE_ARGS}'"
+        ${NUODB_MANAGER_RUN_COMMAND} "start process te host ${TARGET_HOST} database ${DATABASE_NAME} options '${TE_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
+        sleep 2
+    fi
+}
+
+#
+# Start the nuodb interactive sql client.
+#
+function startsql()
+{
+    echo "[INFO] Loading db" | tee -a ${MANAGE_LOG_FILE}
+
+    ${NUODB_HOME}/bin/nuosql ${DATABASE_NAME}@${BROKER_HOST}:${BROKER_PORT} --user ${DATABASE_USER} --password ${DATABASE_PASSWORD} --schema ${DATABASE_SCHEMA}
+}
+
+function clean()
+{
+    echo "[INFO] Cleaning any existing archive directory and cleaning out the logs directory on ${TARGET_HOST}"
+
+    if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "SM" ]]
+    then
+        echo "deleting archive..."
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${ARCHIVE_URL}"
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /ssd/${DATABASE_NAME}/*.*"
+    fi
+    echo "deleting logs..."
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f ${NUODB_LOGS_DIR}/*.log"
+    echo "deleting log zips..."
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f ${NUODB_LOGS_DIR}/*.gz"
+    echo "deleting cores..."
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod a+rx ${NUODB_LOGS_DIR}/crash/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f ${NUODB_LOGS_DIR}/crash/core.*"
+
+    if [[ "${CLEAN_RAFT}" == "1" ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${STORAGE_DIR}/Raft"
+    fi
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${NUODB_LOGS_DIR}/crash/core.*"
+}
+
+#
+# Shutdown the nuodb database.
+#
+function shutdown()
+{
+    killall mpstat iostat sar || true
+    echo "[INFO] Shutting down chorus and monitors" | tee -a ${MANAGE_LOG_FILE}
+    echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} shutdown database ${DATABASE_NAME}"
+    ${NUODB_MANAGER_RUN_COMMAND} "shutdown database ${DATABASE_NAME}" | tee -a ${MANAGE_LOG_FILE}
+}
+
+function logstats()
+{
+    echo "[INFO] Gathering system statistics..."  | tee -a ${CPU_STAT_LOG} ${DISK_STAT_LOG} ${NET_STAT_LOG} ${MANAGE_LOG_FILE}
+
+    os_type=`uname -s`
+    case $os_type in
+        Darwin*)
+            iostat -d 10 36000 >> ${DISK_STAT_LOG} 2>&1 &
+            sar -u 10 36000 >> ${CPU_STAT_LOG} 2>&1 &
+            sar -n DEV 10 36000 >> ${NET_STAT_LOG} 2>&1 &
+        ;;
+        Linux*)
+            iostat -dx 10 36000 >> ${DISK_STAT_LOG} 2>&1 &
+            mpstat 10 36000 >> ${CPU_STAT_LOG} 2>&1 &
+            sar -n DEV 10 36000 >> ${NET_STAT_LOG} 2>&1 &
+        ;;
+    esac
+}
+
+function show()
+{
+    echo "NuoDB Bootstrap Environment"
+    echo ""
+    echo "  BROKER_HOST:        ${BROKER_HOST}"
+    echo "  TARGET_HOST:        ${TARGET_HOST}"
+    echo "  TARGET_ROLE:        ${TARGET_ROLE}"
+    echo "  USE_JOURNAL_DIR:    ${USE_JOURNAL_DIR}"
+    echo "  ARCHIVE_URL:        ${ARCHIVE_URL}"
+    echo "  DATABASE_NAME:      ${DATABASE_NAME}"
+    echo "  STATS_LOGS_DIR:     ${STATS_LOGS_DIR}"
+    echo "  NUODB_LOGS_DIR:     ${NUODB_LOGS_DIR}"
+    echo ""
+    echo "Domain Summary: "
+    ${NUODB_MANAGER_RUN} --command "show domain summary" | tee -a ${MANAGE_LOG_FILE}
+}
+
+function help()
+{
+  cat <<- __EOF__
+
+  EXECUTION
+
+  This script may be run directly or indirectly using a foreachhost script.
+  In the former case, simply execute the script, passing in the corresponding
+  bash function name, or no arguments to display the command line syntax.
+
+  ENVIRONMENT VARIABLES
+
+  The following is a list of the environment variables and their purpose:
+
+    BROKER_HOST     is the host having a NuoDB broker running; the default
+                    value is 'localhost'
+
+    TARGET_HOST     is the host ip address on which a TE or SM is started;
+                    the default value is BROKER_HOST
+
+  SPECIAL ENVIRONMENT VARIABLES
+
+  For certain functions such as the startsm and startte functions, optional
+  arguments may be passed in to enable or disable their execution. Namely, a
+  TARGET_ROLE environment variable, whose optional values are SM and TE, may
+  be set. When set to SM, the startte function is a noop; when set to TE,
+  the startsm function is a noop. This variable is primary used to facilitate
+  group operations across a hosts list file where hosts are demarked by their
+  role. See the accompanying foreachhost script for more details.
+
+  PUSHING ARCHIVE COPIES TO EACH STORAGE MANAGER
+
+  The script has the capability of pushing an archive copy to each of the
+  targeted storage managers listed in the hosts file. The ARCHIVE_ZIP variable
+  specifies the path on the local host where the .tgz extension zip file
+  exists. This must be set and the file exist locally in order for this to
+  work. The copying process will stage the tar file to each of the target
+  storage manager hosts, then unzip the archive into the production-archives
+  directory, then set the appropriate permissions.
+
+  This feature MUST NOT be used with the FORCE_INIT option listed below in
+  the STARTING STORAGE MANGERS section.
+
+  To push an archive copy command issue the following command:
+
+    ./foreachhost ./runit pusharchive
+
+  STARTING STORAGE MANAGERS
+
+  The first time you start the storage managers, or when you wish to force the
+  reinitialization of an archive, ensure the archive directory exists then run
+  the following command line:
+
+    FORCE_INIT=1 ${ME} startsm
+
+  Do NOT run the FORCE_INIT option when using archive copies as this will
+  cause the copied archive to be truncated.
+
+  Otherwise to start the storage manager you simply run the following command:
+
+    ${ME} startsm
+
+  STARTING TRANSACTION ENGINES
+
+  To start a transaction engine simply run the following command:
+
+    ${ME} startte
+
+  OTHER
+
+  All functions of this script print out the elapsed time to run as the last
+  output.
+
+__EOF__
+}
+
+if [ $# -eq 0 ]; then
+    echo -e "\nSyntax:\n\t${ME} [<command> ...]\n\
+\nCommands include:\
+\n\t help        displays extended help and explanations\
+\n\t showconfig  displays nuodb configuration information\
+\n\t saveconfig  saves nuodb configuration information\
+\n\t restoreconfig  saves nuodb configuration information\
+\n\t pusharchive pushes an archive copy to the sm's across all nodes targeted\
+\n\t startsm     starts the sm's across all nodes targeted\
+\n\t startte     starts the te's across all nodes targeted\
+\n\t startsql    starts the nuodb command line sql tool in interactive mode\
+\n\t startmgr    starts the nuodb command line manager in interactive mode\
+\n\t loggcinfo   logs gc info in the database\
+\n\t logstats    turns on stats logging on all targeted hosts\
+\n\t shutdown    shuts down the entire database across all hosts\
+\n\t show        show the environment variables
+\n"
+fi
+
+while [ $# -gt 0 ]
+do
+    CMD=$1
+    time {
+      ${CMD}
+      shift
+    }
+    echo ""
+done
+
+exit

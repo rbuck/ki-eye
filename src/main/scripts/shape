@@ -1,0 +1,122 @@
+#!/bin/bash
+
+ME=`basename $0`
+
+os_type=`uname -s`
+case $os_type in
+    Darwin*)
+        ECHO="echo -e"
+    ;;
+    Linux*)
+        ECHO="echo -e"
+    ;;
+esac
+
+: ${DELAY:="8ms"}
+: ${JITTER:="0ms"}
+: ${DST_ADDR:="10.3.90.3"}
+: ${TARGET_HOST:="p112"}
+
+if [[ ${DST_ADDR} == */* ]]
+then
+    DST_CIDR=${DST_ADDR}
+else
+    IFS=. read -r i1 i2 i3 i4 <<< "${DST_ADDR}"
+    DST_CIDR="${i1}.${i2}.${i3}.0/24"
+fi
+
+${ECHO} "Configuration:\
+\n\tDELAY       ${DELAY}\
+\n\tJITTER      ${JITTER}\
+\n\tDST ADDR    ${DST_ADDR}\
+\n\tDST CIDR    ${DST_CIDR}\
+\n\tTARGET HOST ${TARGET_HOST}\
+\n"
+
+function add_delay()
+{
+  # A rule to add delay and jitter using a normal distribution with 25% of correlation
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 root handle 1: prio bands 10"
+  #ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY} ${JITTER} 25% distribution normal"
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY}"
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src 0.0.0.0/0 match ip dst ${DST_CIDR} flowid 10:1"
+}
+
+function del_delay()
+{
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc del dev eth0 root"
+}
+
+function add_partition()
+{
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo iptables-save > /tmp/iptables.rules"
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo iptables -A INPUT -s ${DST_CIDR} -j DROP"
+}
+
+function del_partition()
+{
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo iptables-restore < /tmp/iptables.rules"
+  #ssh -n -l ${USER} ${TARGET_HOST} "sudo iptables -F"
+  #ssh -n -l ${USER} ${TARGET_HOST} "sudo iptables -X"
+}
+
+function help()
+{
+  cat <<'__EOF__'
+
+  Requirements:
+
+  - RHEL or Ubuntu based distribution.
+  - Install the tc network emulator (ordinarily installed).
+
+  Configuring Latency:
+
+  The configured latency may be set in the configuration parameters of this
+  script; alternatively, you may configure them as inline environment variable
+  definitions during invocation:
+
+    ./foreachhost DST_ADDR=10.3.90.2 DELAY=500ms JITTER=50ms ./shape add_delay
+
+  To specifically target one host you must specify a CIDR for the DST_ADDR
+  value, for example:
+
+    ./foreachhost DST_ADDR=10.3.90.2/32 DELAY=500ms JITTER=50ms ./shape add_delay
+
+  All functions of this script print out the elapsed time to run as the last
+  output.
+
+  Typically used with the foreachhost script, only one domain at a time
+  should be configured. The DST_ADDR should be a host ip address for
+  any of the hosts in the other domain.
+
+  See the following links for more information:
+
+  http://www.linuxfoundation.org/collaborate/workgroups/networking/netem
+  http://kakaroto.homelinux.net/2011/09/network-emulator-tool-for-linux/
+  https://calomel.org/network_loss_emulation.html
+
+__EOF__
+}
+
+if [ $# -eq 0 ]; then
+  ${ECHO} "\nSyntax\n\t${ME} [<command> ...]\n\
+\nCommands include:\
+\n\t help           provide detailed help\
+\n\t add_delay      add the configured latency\
+\n\t del_delay      delete the configured latency\
+\n\t add_partition  add the configured latency\
+\n\t del_partition  delete the configured latency\
+\n"
+fi
+
+while [ $# -gt 0 ]
+do
+  CMD=$1
+  time {
+    ${CMD}
+    shift
+  }
+  ${ECHO} ""
+done
+
+exit

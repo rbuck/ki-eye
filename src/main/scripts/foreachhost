@@ -1,0 +1,41 @@
+#!/bin/bash
+
+echo ""
+echo "  NuoDB Bootstrap Foreach Script"
+echo ""
+
+INPUT=hosts
+
+while read -r record
+do
+  if [[ -z "${record}" || ${record} =~ ^\#.* ]]
+    then continue
+  else
+    IFS=, read -r region role ipaddr usejrnldir <<< "${record}"
+
+    echo "========================================================================="
+    echo ""
+
+    COMMAND="(TARGET_HOST=${ipaddr} TARGET_ROLE=${role} TARGET_REGION=${region} USE_JOURNAL_DIR=${usejrnldir} $@)"
+    if [[ ! -z ${TRACE} ]]
+    then
+        echo "Running Command:"
+        echo ""
+        echo "  ${COMMAND}"
+        echo ""
+    fi
+    if [[ ! -z ${SHOW} ]]
+    then
+        echo "Host File Record:"
+        echo ""
+        echo "  REGION:             ${region}"
+        echo "  ROLE:               ${role}"
+        echo "  IP ADDRESS:         ${ipaddr}"
+        echo "  USE JOURNAL DIR:    ${usejrnldir}"
+        echo ""
+    fi
+    eval "${COMMAND}"
+  fi
+done < $INPUT
+
+echo ""

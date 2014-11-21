@@ -1,0 +1,24 @@
+# ###############################################
+# IMPORTANT NOTES
+
+# n.b. the SM hosts are the broker hosts
+
+# n.b. network partition and failure detection
+# is only at the engine level which means that
+# each region may have an equal count of hosts
+# running agents, but it is essential that the
+# count of nodes running must be different.
+
+# n.b. the sample application is deployed across
+# each of the te hosts.
+
+# ###############################################
+# RECORD FORMAT
+
+# the record format for entries in this file are:
+#
+# region,role,ipaddr,usejrnldir
+
+# ###############################################
+# APPLICATION AND DATABASE SERVICES
+

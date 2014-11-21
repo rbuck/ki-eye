@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cp hosts.0 hosts
+./foreachhost ./shape del_delay
+

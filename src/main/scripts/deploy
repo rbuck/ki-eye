@@ -1,0 +1,22 @@
+#!/bin/sh
+
+cp hosts.mgt.shutdown hosts
+./foreachhost ./runit stopagent
+
+cp hosts.0 hosts
+./foreachhost ./runit saveconfig
+./foreachhost ./runit replacenuodb
+#./foreachhost ./runit upgradenuodb
+./foreachhost ./runit restoreconfig
+./foreachhost ./runit pushconfig
+
+./foreachhost ./runit showconfig
+
+cp hosts.mgt.shutdown hosts
+./foreachhost ./runit stopagent
+
+./foreachhost ./runit setdomainpassword
+
+cp hosts.mgt.bootstrap hosts
+./foreachhost ./runit startagent
+
