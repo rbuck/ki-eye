@@ -22,6 +22,16 @@ on multiple hosts. The overall process is:
     UNAME=wesson ./userman create_key
     HOST_FILE=hosts.all ./foreachhost UNAME=wesson SALT=feFedf! PASSWD=aZVG85ndv9CK8yE ./userman add
 
+## Jump Server Configuration
+
+The first step is to update the jump server by uploading ki-eye
+distribution to the $UNAME home directory and uncompressing it.
+
+Following the above step, modify the runit script, changing the
+following line to the appropriate nuodb primordial broker host:
+
+    : ${BROKER_HOST:="localhost"}
+
 ## Traffic Shaping
 
 For partitioning or delay, see the shape script and its wrappers.
