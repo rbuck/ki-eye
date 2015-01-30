@@ -355,7 +355,6 @@ function startsm()
             ${NUODB_MANAGER_RUN_COMMAND} "start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize yes options '${SM_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
             sleep 5
         fi
-
     fi
 }
 
