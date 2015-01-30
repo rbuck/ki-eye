@@ -22,6 +22,14 @@ on multiple hosts. The overall process is:
     UNAME=wesson ./userman create_key
     HOST_FILE=hosts.all ./foreachhost UNAME=wesson SALT=feFedf! PASSWD=aZVG85ndv9CK8yE ./userman add
 
+Located in the testing/artifacts directory will be two SSH key
+files that you should save or distribute, namely, to your laptop
+in particular copy these files to your .ssh directory and chmod
+them with a 700 perms setting. Once this has been accomplished
+you will be able to log in using the following sort of command:
+
+    ssh -i ~/.ssh/id_rsa_wesson wesson@public.ip.address
+
 ## Jump Server Configuration
 
 The first step is to update the jump server by uploading ki-eye
