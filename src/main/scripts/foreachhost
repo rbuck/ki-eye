@@ -11,12 +11,12 @@ do
   if [[ -z "${record}" || ${record} =~ ^\#.* ]]
     then continue
   else
-    IFS=, read -r region role ipaddr usejrnldir <<< "${record}"
+    IFS=, read -r region role ipaddr usejrnldir peeraddr <<< "${record}"
 
     echo "========================================================================="
     echo ""
 
-    COMMAND="(TARGET_HOST=${ipaddr} TARGET_ROLE=${role} TARGET_REGION=${region} USE_JOURNAL_DIR=${usejrnldir} $@)"
+    COMMAND="(TARGET_HOST=${ipaddr} TARGET_ROLE=${role} TARGET_REGION=${region} USE_JOURNAL_DIR=${usejrnldir} PEER_ADDRESS=${peeraddr} $@)"
     if [[ ! -z ${TRACE} ]]
     then
         echo "Running Command:"

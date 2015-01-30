@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cp hosts.0 hosts
+cp hosts.all hosts
 ./foreachhost ./shape del_delay
 
 cp hosts.region_one hosts
@@ -8,4 +8,3 @@ cp hosts.region_one hosts
 
 cp hosts.region_two hosts
 ./foreachhost DST_ADDR=10.3.89.2 ./shape add_delay
-

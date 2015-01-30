@@ -14,6 +14,7 @@ popd >/dev/null
 : ${KEYFILE:="id_rsa_$UNAME"}
 : ${SALT:=""}
 : ${ENCRYPTED:=""}
+: ${ARTIFACTS:="${SELF_ROOT}"}
 
 function verify()
 {
@@ -35,14 +36,14 @@ function salt()
 
 function create_key()
 {
-    ssh-keygen -t rsa -b 1024 -N '' -f id_rsa -C "${UNAME}"
-    cat id_rsa.pub > authorized_keys
+    ssh-keygen -t rsa -b 1024 -N '' -f ${ARTIFACTS}/id_rsa -C "${UNAME}"
+    cat ${ARTIFACTS}/id_rsa.pub > ${ARTIFACTS}/authorized_keys
 }
 
 function delete_key()
 {
-    rm -f id_rsa*
-    rm -f authorized_keys
+    rm -f ${ARTIFACTS}/id_rsa*
+    rm -f ${ARTIFACTS}/authorized_keys
 }
 
 function add()

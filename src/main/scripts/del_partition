@@ -1,5 +1,4 @@
 #!/bin/sh
 
-cp hosts.0 hosts
+cp hosts.all hosts
 ./foreachhost ./shape del_partition
-

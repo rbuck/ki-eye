@@ -12,8 +12,8 @@ case $os_type in
     ;;
 esac
 
-: ${DELAY:="8ms"}
-: ${JITTER:="0ms"}
+: ${DELAY:="40ms"}
+: ${JITTER:="5ms"}
 : ${DST_ADDR:="10.3.90.3"}
 : ${TARGET_HOST:="p112"}
 
@@ -37,8 +37,8 @@ function add_delay()
 {
   # A rule to add delay and jitter using a normal distribution with 25% of correlation
   ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 root handle 1: prio bands 10"
-  #ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY} ${JITTER} 25% distribution normal"
-  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY}"
+  ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY} ${JITTER} 25% distribution normal"
+  #ssh -n -l ${USER} ${TARGET_HOST} "sudo tc qdisc add dev eth0 parent 1:1 handle 10: netem delay ${DELAY}"
   ssh -n -l ${USER} ${TARGET_HOST} "sudo tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src 0.0.0.0/0 match ip dst ${DST_CIDR} flowid 10:1"
 }
 

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+cp hosts.mgt.shutdown hosts
+./foreachhost ./runit stopagent
+
+./foreachhost ./runit clean
+
+cp hosts.mgt.bootstrap hosts
+./foreachhost ./runit startagent
+
+./runit show

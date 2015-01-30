@@ -1,0 +1,18 @@
+#!/bin/sh
+
+cp hosts.all hosts
+./foreachhost ./runit installnuodb
+
+cp hosts.mgt.shutdown hosts
+./foreachhost ./runit stopagent
+
+./foreachhost ./runit setdomainpassword
+./foreachhost ./runit setregionname
+./foreachhost ./runit setpeer
+./foreachhost ./runit setbalancer
+./foreachhost ./runit settags
+
+cp hosts.mgt.bootstrap hosts
+./foreachhost ./runit startagent
+
+./foreachhost ./runit showconfig

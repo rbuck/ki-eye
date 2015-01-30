@@ -11,13 +11,13 @@ SELF_ROOT=`pwd`
 popd >/dev/null
 
 : ${NUODB_HOME:="/opt/nuodb"}
-: ${BROKER_HOST:="p116"}
+: ${BROKER_HOST:="localhost"}
 : ${TARGET_HOST:="$BROKER_HOST"}
 : ${BROKER_PORT:="48004"}
 : ${BROKER_DOMAIN:="domain"}
 : ${BROKER_DOMAIN_PASSWORD:="bird"}
-: ${DATABASE_NAME:="csg"}
-: ${DATABASE_SCHEMA="csg"}
+: ${DATABASE_NAME:="test"}
+: ${DATABASE_SCHEMA="test"}
 : ${DATABASE_USER:="dba"}
 : ${DATABASE_PASSWORD="dba"}
 : ${NODE_PORT_RANGE:="48010,48099"}
@@ -29,14 +29,10 @@ popd >/dev/null
 : ${STATS_LOGS_DIR:="/tmp/$USER-stats"}
 : ${NUODB_LOGS_DIR:="/var/log/nuodb"}
 : ${MANAGE_LOG_FILE:="$TMP_LOGS_DIR/$USER-runit.log"}
-: ${ENGINE_ARGS:="--mem 8G --commit region:2 --verbose info,warn,net,error"}
+: ${ENGINE_ARGS:="--mem 12G --commit region:2 --verbose info,warn,net,error"}
 : ${NUODB_MANAGER_JAR:="$NUODB_HOME/jar/nuodbmanager.jar"}
 : ${ARCHIVE_ZIP:="/tmp/$USER-archive.tgz"}
-#: ${NUODB_INSTALL_PACKAGE:="nuodb-2.0.4.linux.x64.deb"}
-#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.13-linux.x86_64.deb"}
-#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.14-linux.x86_64.deb"}
-#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.0.4.15-linux.x86_64.deb"}
-: ${NUODB_INSTALL_PACKAGE:="nuodb_2.1.0.rel21.66.deb"}
+#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.1.1.10_amd64.deb"}
 
 if [[ -e "${SCRIPT_DIR}/nuodbmanager.jar" ]]
 then
@@ -118,6 +114,28 @@ function saveconfig()
     ssh -n -l ${USER} ${TARGET_HOST} "sudo cp /opt/nuodb/etc/default.properties /tmp/"
 }
 
+function installnuodb()
+{
+    echo "Installing NuoDB on ${TARGET_HOST}"
+
+    NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /tmp/${NUODB_INSTALL_PACKAGE}"
+    scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+}
+
+function removenuodb()
+{
+    echo "Removing NuoDB on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /etc/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /opt/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/opt/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/log/nuodb"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /tmp/${NUODB_INSTALL_PACKAGE}"
+}
+
 function replacenuodb()
 {
     echo "Replacing NuoDB on ${TARGET_HOST}"
@@ -156,7 +174,6 @@ function pushconfig()
     #ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/default.license /etc/nuodb/cfg/"
     #ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /etc/nuodb/cfg/default.license"
 
-    NUODB_BALANCER_PACKAGE="${SELF_ROOT}/../artifacts/balancer.jar"
     scp ${NUODB_BALANCER_PACKAGE} ${USER}@${TARGET_HOST}:/tmp
     ssh -n -l ${USER} ${TARGET_HOST} "sudo mkdir -p /opt/nuodb/plugin/agent/"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/balancer.jar /opt/nuodb/plugin/agent/"
@@ -169,21 +186,28 @@ function restoreconfig()
 
     ssh -n -l ${USER} ${TARGET_HOST} "sudo cp /tmp/default.properties /opt/nuodb/etc/default.properties"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo chown nuodb:nuodb /opt/nuodb/etc/default.properties"
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f /tmp/default.properties"
 }
 
 function showconfig()
 {
     echo "Show operational configuration of a nuodb installation on ${TARGET_HOST}"
 
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "broker ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "peer ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "region ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "balancer ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "enableAutomation ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "enableAutomationBootstrap ="
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "verbose"
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "ping-timeout"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^broker ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^peer ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^region ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^balancer ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^domainPassword ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/default.properties" | grep "^hostTags ="
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "^verbose"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo cat /opt/nuodb/etc/nuodb.config" | grep "^ping-timeout"
+}
+
+function setpeer()
+{
+    echo "Setting the peer on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^#peer/ s/#peer =.*/peer =/' /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^peer =.*/ s/=.*/= ${PEER_ADDRESS}/' /opt/nuodb/etc/default.properties"
 }
 
 function setregionname()
@@ -210,6 +234,14 @@ function setdomainpassword()
     ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^domainPassword =.*/ s/=.*/= ${BROKER_DOMAIN_PASSWORD}/' /opt/nuodb/etc/default.properties"
 }
 
+function settags()
+{
+    echo "Setting the agent tags on ${TARGET_HOST}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^#hostTags/ s/#hostTags =.*/hostTags =/' /opt/nuodb/etc/default.properties"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo sed -i -e '/^hostTags =.*/ s/=.*/= ${TARGET_ROLE} = 1/' /opt/nuodb/etc/default.properties"
+}
+
 function enable_nfd()
 {
     echo "Enabling NFD on ${TARGET_HOST}"
@@ -229,7 +261,7 @@ function startagent()
     echo "Starting the agent on ${TARGET_HOST}"
 
     ssh -n -l ${USER} ${TARGET_HOST} "sudo service nuoagent start ${AGENT_ARGS}"
-    sleep 2
+    sleep 15
 }
 
 # #############################################################################
@@ -309,19 +341,19 @@ function startsm()
           SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable"
         fi
 
-        echo "[INFO] Starting archive manager and recreating database" | tee -a ${MANAGE_LOG_FILE}
+        echo "[INFO] Starting archive manager and recreating database on ${TARGET_HOST}" | tee -a ${MANAGE_LOG_FILE}
         if [[ -z ${FORCE_INIT} ]]
         then
             echo "[INFO] Restarting storage manager with existing archive" | tee -a ${MANAGE_LOG_FILE}
             echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize no options '${SM_ARGS}'"
             ${NUODB_MANAGER_RUN_COMMAND} "start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize no options '${SM_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
-            sleep 2
+            sleep 5
         else
-            #ssh -n -l ${USER} ${TARGET_HOST} "rm -fr ${ARCHIVE_URL}"
+            ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${ARCHIVE_URL}"
             echo "Ensure the following directory exists: ${ARCHIVE_DIR}"
             echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize yes options '${SM_ARGS}'"
             ${NUODB_MANAGER_RUN_COMMAND} "start process sm archive ${ARCHIVE_URL} host ${TARGET_HOST} database ${DATABASE_NAME} initialize yes options '${SM_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
-            sleep 2
+            sleep 5
         fi
 
     fi
@@ -339,7 +371,7 @@ function startte()
         TE_ARGS="--dba-user ${DATABASE_USER} --dba-password ${DATABASE_PASSWORD} ${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/te-${DATABASE_NAME}.log"
         echo -e "\tExecute: ${NUODB_MANAGER_RUN_COMMAND} start process te host ${TARGET_HOST} database ${DATABASE_NAME} options '${TE_ARGS}'"
         ${NUODB_MANAGER_RUN_COMMAND} "start process te host ${TARGET_HOST} database ${DATABASE_NAME} options '${TE_ARGS}'" | tee -a ${MANAGE_LOG_FILE}
-        sleep 2
+        sleep 5
     fi
 }
 
@@ -371,12 +403,10 @@ function clean()
     ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod a+rx ${NUODB_LOGS_DIR}/crash/"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f ${NUODB_LOGS_DIR}/crash/core.*"
 
-    if [[ "${CLEAN_RAFT}" == "1" ]]
+        if [[ "${CLEAN_RAFT}" == "1" ]]
     then
         ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${STORAGE_DIR}/Raft"
     fi
-
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr ${NUODB_LOGS_DIR}/crash/core.*"
 }
 
 #
