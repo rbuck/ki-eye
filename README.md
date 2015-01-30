@@ -28,7 +28,7 @@ in particular copy these files to your .ssh directory and chmod
 them with a 700 perms setting. Once this has been accomplished
 you will be able to log in using the following sort of command:
 
-    ssh -i ~/.ssh/id_rsa_wesson wesson@public.ip.address
+    ssh -i ~/.ssh/id_rsa_wesson wesson@jump.server.ip.address
 
 ## Jump Server Configuration
 
