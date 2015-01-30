@@ -14,7 +14,7 @@ popd >/dev/null
 : ${KEYFILE:="id_rsa_$UNAME"}
 : ${SALT:=""}
 : ${ENCRYPTED:=""}
-: ${ARTIFACTS:="${SELF_ROOT}"}
+: ${ARTIFACTS:="${SELF_ROOT}/../artifacts"}
 
 function verify()
 {

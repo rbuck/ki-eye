@@ -18,7 +18,9 @@ There are a few fundamental requirements to use this infrastructure:
 Tools exist for provisioning user accounts and identical credentials
 on multiple hosts. The overall process is:
 
-TBD...
+    ./userman salt # note output salt value, use below...
+    UNAME=wesson ./userman create_key
+    HOST_FILE=hosts.all ./foreachhost UNAME=wesson SALT=feFedf! PASSWD=aZVG85ndv9CK8yE ./userman add
 
 ## Traffic Shaping
 

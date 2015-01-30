@@ -4,7 +4,7 @@ echo ""
 echo "  NuoDB Bootstrap Foreach Script"
 echo ""
 
-INPUT=hosts
+: ${HOST_FILE:="hosts"}
 
 while read -r record
 do
@@ -36,6 +36,6 @@ do
     fi
     eval "${COMMAND}"
   fi
-done < $INPUT
+done < $HOST_FILE
 
 echo ""
