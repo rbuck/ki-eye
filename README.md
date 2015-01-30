@@ -32,7 +32,7 @@ you will be able to log in using the following sort of command:
 
 ## Jump Server Configuration
 
-The first step is to update the jump server by uploading ki-eye
+The next step is to update the jump server by uploading the ki-eye
 distribution to the $UNAME home directory and uncompressing it.
 
 Following the above step, modify the runit script, changing the
