@@ -61,7 +61,8 @@ this set to empty.
 
 The general execution model for the foreachhost script is as follows:
 
-    [HOST_FILE=hosts.all : hosts (default)] [ENV_VAR_1=value1] ./foreachhost [ENV_VAR_2=value2]* ./{sub-script-name} {sub-script-options-or-command}
+    [HOST_FILE=hosts.all : hosts (default)] [ENV_VAR_1=value1] ./foreachhost \
+        [ENV_VAR_2=value2]* ./{sub-script-name} {sub-script-options-or-command}
 
 One key observation here, you can override which host file is used by
 the foreachhost script via the HOST_FILE environment variable, but this
