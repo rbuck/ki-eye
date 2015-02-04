@@ -13,6 +13,70 @@ There are a few fundamental requirements to use this infrastructure:
 - multiple subnets (one for each mock region)
 - one special host acting as a jump server on its own subnet
 
+## Central Tenets
+
+### Hosts File Driven
+
+The scripts herein are optionally driven by hosts files, allowing
+for-each semantics for each listed. Two components of this design
+are the:
+
+- hosts file
+- foreachhost script
+
+#### Host File Format
+
+The format of the hosts file is CSV-based, and its schema is as follows:
+
+    region,role,ipaddr,usejrnldir,peeraddr
+
+The region is a convenient name for the region to which the related
+host is part of; these are free-form character fields, generally has
+the traditional naming conventions:
+
+- one, two, tre
+- east, west
+- amer, emea, apac
+- etc...
+
+The role field is a discriminator frequently used to distinguish
+hosts having special disk capabilities from those that are compute
+oriented; generally the names used herein are:
+
+- SM    : NuoDB Storage Manager Node
+- TE    : NuoDB Transaction Engine Node
+- JS    : Jump Server
+
+The ipaddr field is the private ip address for the host, or DNS resolvable
+host name.
+
+The usejrnldir field indicates that a separate SSD exists on the host
+that may be used. The field is a boolean field, 0 for false, 1 for true.
+
+The peeraddr field is used to set NuoDB peering and indicates to which
+host ip addr this NuoDB node should peer to. The primordial broker has
+this set to empty.
+
+#### ForEachHost Script Semantics
+
+The general execution model for the foreachhost script is as follows:
+
+    [HOST_FILE=hosts.all : hosts (default)] [ENV_VAR_1=value1] ./foreachhost [ENV_VAR_2=value2]* ./{sub-script-name} {sub-script-options-or-command}
+
+One key observation here, you can override which host file is used by
+the foreachhost script via the HOST_FILE environment variable, but this
+defaults to a hosts file named 'hosts'.
+
+The foreachhost script sets additional environment variables useable
+by the sub-script:
+
+- HOST_FILE=${HOST_FILE}
+- TARGET_HOST=${ipaddr}
+- TARGET_ROLE=${role}
+- TARGET_REGION=${region}
+- USE_JOURNAL_DIR=${usejrnldir}
+- PEER_ADDRESS=${peeraddr}
+
 ## User Account Provisioning
 
 Tools exist for provisioning user accounts and identical credentials
