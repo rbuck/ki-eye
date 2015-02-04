@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Courtesy: Jody Hunt
+
 : ${TARGET_HOST:="localhost"}
 : ${HOST_FILE:="hosts"}
 : ${REPEATS:=10}
