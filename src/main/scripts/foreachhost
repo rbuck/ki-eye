@@ -16,7 +16,7 @@ do
     echo "========================================================================="
     echo ""
 
-    COMMAND="(TARGET_HOST=${ipaddr} TARGET_ROLE=${role} TARGET_REGION=${region} USE_JOURNAL_DIR=${usejrnldir} PEER_ADDRESS=${peeraddr} $@)"
+    COMMAND="(HOST_FILE=${HOST_FILE} TARGET_HOST=${ipaddr} TARGET_ROLE=${role} TARGET_REGION=${region} USE_JOURNAL_DIR=${usejrnldir} PEER_ADDRESS=${peeraddr} $@)"
     if [[ ! -z ${TRACE} ]]
     then
         echo "Running Command:"

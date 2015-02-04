@@ -1,0 +1,71 @@
+#!/bin/bash
+
+: ${TARGET_HOST:="localhost"}
+: ${HOST_FILE:="hosts"}
+: ${REPEATS:=10}
+
+HOSTS=()
+
+while read -r record
+do
+  if [[ -z "${record}" || ${record} =~ ^\#.* ]]
+    then continue
+  else
+    IFS=, read -r region role ipaddr usejrnldir peeraddr <<< "${record}"
+
+    if [ "$TARGET_HOST" != ${ipaddr} ]; then
+        HOSTS+=("${ipaddr}")
+    fi
+  fi
+done < $HOST_FILE
+
+#echo ${HOSTS[@]}
+
+TMPFILE_SFX="netcheck"
+
+for i in ${HOSTS[@]}
+do
+    echo "#!/bin/bash" > ${i}.${TMPFILE_SFX}
+    echo "HOSTS=(${HOSTS[@]})" >> ${i}.${TMPFILE_SFX}
+    echo "REPEATS=${REPEATS}" >> ${i}.${TMPFILE_SFX}
+
+    cat <<- __EOF__ >> ${i}.${TMPFILE_SFX}
+
+TMPFILE_SFX="netcheck"
+for i in \${HOSTS}
+do
+    ping -c \${REPEATS} -q $i > \${i}.\${TMPFILE_SFX} &
+done
+while true
+do
+    JOBS=\`jobs -r\`
+    if [ -n "\${JOBS}" ]
+    then
+        sleep 1
+    else
+        echo "" > /dev/stderr
+        printf "%s" \${HOSTNAME}
+        for i in \${HOSTS}
+        do  
+            if [ "\$i" == "\${HOSTNAME}" ]
+            then
+                printf ",%s" "localhost"
+            else
+                printf ",%s" \`arp -n \$i | awk -F " " '/Address/ {next} {print \$1}'\`
+            fi
+        done
+        #printf "\n\t"
+        for i in \${HOSTS}
+        do  
+            cat \${i}.\${TMPFILE_SFX} | awk -F "/" '/rtt/ {printf ",%s/%s", \$5, substr(\$7,1,index(\$7," ")-1) }'
+            rm \${i}.\${TMPFILE_SFX}
+        done
+        echo ""
+        exit
+    fi
+done
+__EOF__
+
+    cat ${i}.${TMPFILE_SFX} | ssh -t -l ${USER} ${i} 2> /dev/null
+    rm ${i}.${TMPFILE_SFX}
+done

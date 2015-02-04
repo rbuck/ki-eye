@@ -21,6 +21,7 @@ on multiple hosts. The overall process is:
     ./userman salt # note output salt value, use below...
     UNAME=wesson ./userman create_key
     HOST_FILE=hosts.all ./foreachhost UNAME=wesson SALT=feFedf! PASSWD=aZVG85ndv9CK8yE ./userman add
+    HOST_FILE=hosts.all ./foreachhost UNAME=wesson ./userman add_sudo
 
 Located in the testing/artifacts directory will be two SSH key
 files that you should save or distribute, namely, to your laptop
@@ -39,6 +40,36 @@ Following the above step, modify the runit script, changing the
 following line to the appropriate nuodb primordial broker host:
 
     : ${BROKER_HOST:="localhost"}
+
+## Database Provisioning
+
+First step is to update runit bash variable database credentials:
+
+    : ${BROKER_HOST:="localhost"}
+    : ${DATABASE_NAME:="dbname"}
+    : ${DATABASE_SCHEMA="test"}
+    : ${DATABASE_USER:="dba"}
+    : ${DATABASE_PASSWORD="dba"}
+
+Then for each test (scale out or geo distribution) scenario create
+an appropriate hosts file. Just as an initial step create one host
+file named host.0 with only one TE and one SM in region_one so we
+can perform a basic database test to verify settings.
+
+    cp hosts.region_one hosts.0
+
+Then comment out all hosts except the first two in region_one.
+
+### Starting a Pre Canned Archive
+
+Deploy a canned database archive to the archive host.
+Verify permissions are correct:
+
+    sudo chown -R nuodb:nuodb /var/opt/nuodb/production-archives/dbname
+
+
+
+### Starting a Fresh Archive
 
 ## Traffic Shaping
 

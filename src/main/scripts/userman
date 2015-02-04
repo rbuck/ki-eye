@@ -75,6 +75,10 @@ function add()
     ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 644 /home/${UNAME}/.ssh/known_hosts"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo chown -R ${UNAME}:${UNAME} /home/${UNAME}/.ssh"
 
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo touch /home/${UNAME}/.hushlogin"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chown -R ${UNAME}:${UNAME} /home/${UNAME}/.hushlogin"
+
+
     # clean up the temporary key files
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -f /tmp/id_rsa*"
 }
