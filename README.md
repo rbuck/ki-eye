@@ -41,6 +41,26 @@ following line to the appropriate nuodb primordial broker host:
 
     : ${BROKER_HOST:="localhost"}
 
+## Network Verification
+
+Before running a test be sure to check your network for saneness.
+This is accomplished by running the netcheck script:
+
+    HOST_FILE=hosts.all ./foreachhost ./netcheck
+
+Output will be of the form:
+
+    p111,10.3.89.2,0.023/0.006
+    p112,10.3.89.2,0.019/0.006
+    p113,10.3.89.2,0.019/0.005
+    p114,10.3.89.2,0.019/0.006
+    p115,10.3.89.2,0.019/0.004
+    ...
+
+The output format above is:
+
+    target_host,source-host,mean-rtt/std-dev
+
 ## Database Provisioning
 
 First step is to update runit bash variable database credentials:
