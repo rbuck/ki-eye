@@ -59,7 +59,7 @@ Output will be of the form:
 
 The output format above is:
 
-    target_host,source-host,mean-rtt/std-dev
+    target-host,source-host,mean-rtt/std-dev
 
 ## Database Provisioning
 
