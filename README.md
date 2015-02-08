@@ -3,7 +3,7 @@
 Tools to manage and reconfigure mock multi-region environments
 and failure scenarios for several concurrent users.
 
-## Requirements
+## Prerequisites
 
 There are a few fundamental requirements to use this infrastructure:
 
@@ -12,6 +12,35 @@ There are a few fundamental requirements to use this infrastructure:
 - remote password-less ssh exec
 - multiple subnets (one for each mock region)
 - one special host acting as a jump server on its own subnet
+
+### Setting Root Permissions for the Admin Account
+
+The admin that is used to create other accounts (per customer) must
+have these permissions set in the /etc/sudoers file:
+
+    urename ALL=(ALL) NOPASSWD: ALL
+
+### Enable Remote SSH Exec:
+
+To execute remote sudo commands you will have to disable the requirement
+to have a TTY. Edit the /etc/sudoers file and comment out this line if
+it is present:
+
+    #Defaults    requiretty
+
+### Enable Passwordless Login
+
+Create a secure SSH key, but do not set a passphrase:
+
+    ssh-keygen -t rsa -b 1024
+
+Then cat the public keyfile into the authorized keys file:
+
+    cat id_rsa.pub >> authorized_keys
+
+Lastly, set the permissions of the SSH files:
+
+    chmod 700 id_rsa*
 
 ## Central Tenets
 
