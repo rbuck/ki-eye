@@ -121,14 +121,24 @@ function installnuodb()
     NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /tmp/${NUODB_INSTALL_PACKAGE}"
     scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    if [[ "${NUODB_INSTALL_PACKAGE}" == *deb ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    else
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rpm -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    fi
 }
 
 function removenuodb()
 {
     echo "Removing NuoDB on ${TARGET_HOST}"
 
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    if [[ "${NUODB_INSTALL_PACKAGE}" == *deb ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    else
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rpm -e nuodb"
+    fi
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /etc/nuodb"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /opt/nuodb"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/opt/nuodb"
@@ -143,12 +153,22 @@ function replacenuodb()
     NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /tmp/${NUODB_INSTALL_PACKAGE}"
     scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    if [[ "${NUODB_INSTALL_PACKAGE}" == *deb ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -P nuodb"
+    else
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rpm -e nuodb"
+    fi
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /etc/nuodb"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /opt/nuodb"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/opt/nuodb"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /var/log/nuodb"
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    if [[ "${NUODB_INSTALL_PACKAGE}" == *deb ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    else
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rpm -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    fi
 }
 
 function upgradenuodb()
@@ -157,7 +177,12 @@ function upgradenuodb()
 
     NUODB_INSTALL_PACKAGE_PATH="${SELF_ROOT}/../artifacts/${NUODB_INSTALL_PACKAGE}"
     scp ${NUODB_INSTALL_PACKAGE_PATH} ${USER}@${TARGET_HOST}:/tmp
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    if [[ "${NUODB_INSTALL_PACKAGE}" == *deb ]]
+    then
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo dpkg -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    else
+        ssh -n -l ${USER} ${TARGET_HOST} "sudo rpm -i /tmp/${NUODB_INSTALL_PACKAGE}"
+    fi
 }
 
 function pushconfig()
