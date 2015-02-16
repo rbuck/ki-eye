@@ -174,16 +174,42 @@ can perform a basic database test to verify settings.
 
 Then comment out all hosts except the first two in region_one.
 
-### Starting a Pre Canned Archive
+### Starting a Storage Manager with a Pre Canned Archive
 
 Deploy a canned database archive to the archive host.
 Verify permissions are correct:
 
     sudo chown -R nuodb:nuodb /var/opt/nuodb/production-archives/dbname
 
+Make sure all SM hosts have this archive in place.
 
+Then start up the storage engine:
 
-### Starting a Fresh Archive
+    HOST_FILE=hosts.dr ./foreachhost ./runit startsm
+
+### Starting a Storage Manager with a Fresh Archive
+
+Modify the runit script and validate the memory, database and
+schema names, the username and password, are all correct.
+
+To start your storage engines, picking your intended hosts
+file:
+
+    HOST_FILE=hosts.dr ./foreachhost FORCE_INIT=1 ./runit startsm
+
+Note: the FORCE_INIT flag tells the script to supply the initialize=yes
+flag to Nuo, as well as makes sure there are no existing archives
+in the target location.
+
+### Starting the Transaction Engines
+
+Modify the runit script and validate the memory, database and
+schema names, the username and password, are all correct.
+
+To start your transaction engines, picking your intended hosts
+file:
+
+    HOST_FILE=hosts.dr ./foreachhost ./runit startte
 
 ## Traffic Shaping
 
