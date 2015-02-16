@@ -32,7 +32,9 @@ popd >/dev/null
 : ${ENGINE_ARGS:="--mem 12G --commit region:2 --verbose info,warn,net,error"}
 : ${NUODB_MANAGER_JAR:="$NUODB_HOME/jar/nuodbmanager.jar"}
 : ${ARCHIVE_ZIP:="/tmp/$USER-archive.tgz"}
-#: ${NUODB_INSTALL_PACKAGE:="nuodb_2.1.1.10_amd64.deb"}
+: ${NUODB_INSTALL_PACKAGE:="nuodb_2.1.1.10_amd64.deb"}
+: ${APPLICATION_DIR:="deploy"}
+: ${APPLICATION_PACKAGE:="dash-deploy.tar.gz"}
 
 if [[ -e "${SCRIPT_DIR}/nuodbmanager.jar" ]]
 then
@@ -298,16 +300,14 @@ function deployapp()
     if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "TE" ]]
     then
 
-        APP_DEPLOYMENT="jdbc-sample"
-        APP_PACKAGE="${APP_DEPLOYMENT}.tgz"
-        PACKAGE_PATH="${SELF_ROOT}/../artifacts/${APP_PACKAGE}"
+        PACKAGE_PATH="${SELF_ROOT}/../artifacts/${APPLICATION_PACKAGE}"
 
-        echo "Deploying to ${TARGET_HOST}"
+        echo "Deploying ${APPLICATION_PACKAGE} to ${TARGET_HOST}"
 
-        ssh -n -l ${USER} ${TARGET_HOST} "rm -fr ${APP_DEPLOYMENT}"
-        ssh -n -l ${USER} ${TARGET_HOST} "rm -f ${APP_PACKAGE}"
+        ssh -n -l ${USER} ${TARGET_HOST} "mv --backup=numbered ${APPLICATION_DIR} backup/ || true"
+        ssh -n -l ${USER} ${TARGET_HOST} "rm -f ${APPLICATION_PACKAGE}"
         scp ${PACKAGE_PATH} ${USER}@${TARGET_HOST}:
-        ssh -n -l ${USER} ${TARGET_HOST} "tar xzf ${APP_PACKAGE}"
+        ssh -n -l ${USER} ${TARGET_HOST} "tar xzf ${APPLICATION_PACKAGE}"
 
     fi
 }
