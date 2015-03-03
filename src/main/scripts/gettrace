@@ -1,0 +1,29 @@
+#!/bin/sh
+
+PROGRAM=$1
+CORE=$2
+
+rm gdb.bt
+GDB_COMMANDS="gdb.commands"
+
+cat <<- __EOF__ >> ${GDB_COMMANDS}
+    set logging file gdb.bt
+    set logging on
+    set pagination off
+
+    echo \n\n--------------------------------------------------\n\n
+    echo SHARED LIBRARIES: \n\n
+    info sharedlibrary
+
+    echo \n\n--------------------------------------------------\n\n
+    echo REGISTERS: \n\n
+    info registers
+
+    echo \n\n--------------------------------------------------\n\n
+    echo BACKTRACE: \n\n
+    thread apply all bt full
+__EOF__
+
+gdb -batch -x ${GDB_COMMANDS} ${PROGRAM} ${CORE}
+rm ${GDB_COMMANDS}
+

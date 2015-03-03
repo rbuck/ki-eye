@@ -55,6 +55,14 @@ NET_STAT_LOG=${STATS_LOGS_DIR}/stat_net.log
 # #############################################################################
 
 #
+# Get the amount of disk space available on the archive partition.
+#
+function dfopt()
+{
+    ssh -n -l ${USER} ${TARGET_HOST} "df -h /var/opt"
+}
+
+#
 # Gather gc info from nuodb, this ought to be piped into a file, run for a
 # minute or so, then terminated.
 #
@@ -359,11 +367,10 @@ function startsm()
     if [[ -z ${TARGET_ROLE} || "${TARGET_ROLE}" == "SM" ]]
     then
 
+        SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable --journal-max-file-size-bytes 8000000"
         if [[ "${USE_JOURNAL_DIR}" == "1" ]]
         then
-          SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable --journal-dir ${JOURNAL_URL}"
-        else
-          SM_ARGS="${ENGINE_ARGS} --log ${NUODB_LOGS_DIR}/sm-${DATABASE_NAME}.log --journal enable"
+          SM_ARGS="${SM_ARGS} --journal-dir ${JOURNAL_URL}"
         fi
 
         echo "[INFO] Starting archive manager and recreating database on ${TARGET_HOST}" | tee -a ${MANAGE_LOG_FILE}
