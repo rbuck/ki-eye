@@ -2,12 +2,13 @@
 
 PROGRAM=$1
 CORE=$2
+BACKTRACE=gdb.backtrace.${CORE}
 
-rm gdb.bt
+rm -f ${BACKTRACE}
 GDB_COMMANDS="gdb.commands"
 
 cat <<- __EOF__ >> ${GDB_COMMANDS}
-    set logging file gdb.bt
+    set logging file ${BACKTRACE}
     set logging on
     set pagination off
 
@@ -24,6 +25,6 @@ cat <<- __EOF__ >> ${GDB_COMMANDS}
     thread apply all bt full
 __EOF__
 
-gdb -batch -x ${GDB_COMMANDS} ${PROGRAM} ${CORE}
+gdb --batch-silent -x ${GDB_COMMANDS} ${PROGRAM} ${CORE}
 rm ${GDB_COMMANDS}
 
