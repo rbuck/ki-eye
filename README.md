@@ -174,16 +174,42 @@ can perform a basic database test to verify settings.
 
 Then comment out all hosts except the first two in region_one.
 
-### Starting a Pre Canned Archive
+### Starting a Storage Manager with a Pre Canned Archive
 
 Deploy a canned database archive to the archive host.
 Verify permissions are correct:
 
     sudo chown -R nuodb:nuodb /var/opt/nuodb/production-archives/dbname
 
+Make sure all SM hosts have this archive in place.
 
+Then start up the storage engine:
 
-### Starting a Fresh Archive
+    HOST_FILE=hosts.dr ./foreachhost ./runit startsm
+
+### Starting a Storage Manager with a Fresh Archive
+
+Modify the runit script and validate the memory, database and
+schema names, the username and password, are all correct.
+
+To start your storage engines, picking your intended hosts
+file:
+
+    HOST_FILE=hosts.dr ./foreachhost FORCE_INIT=1 ./runit startsm
+
+Note: the FORCE_INIT flag tells the script to supply the initialize=yes
+flag to Nuo, as well as makes sure there are no existing archives
+in the target location.
+
+### Starting the Transaction Engines
+
+Modify the runit script and validate the memory, database and
+schema names, the username and password, are all correct.
+
+To start your transaction engines, picking your intended hosts
+file:
+
+    HOST_FILE=hosts.dr ./foreachhost ./runit startte
 
 ## Traffic Shaping
 
@@ -207,3 +233,135 @@ and it works fantastic, but the jitter CANNOT be zero, therefore
 if you find yourself needing to use JITTER or normal distributions,
 uncomment the rather obvious like currently commented out,
 and comment out the current line.
+
+## Using Screen
+
+Linux (and Mac) have a utility available called screen which is
+very helpful, if for no other reason than to make sure jobs are
+not killed when you close up your laptop and the SSH session
+hangs up. Other reasons this is useful is support for virtual
+terminals.
+
+Here we share some of the common commands you will use with screen.
+
+### Installing Screen with Yum
+
+    # yum install screen
+
+### Starting Screen
+
+Screen is started from the command line just like any other,
+and you can create a convenient session name to refer to it
+later by:
+
+    # screen -S thename
+
+### Control Command
+
+Screen uses the command “Ctrl-a” that’s the control key and a
+lowercase “a”  as a signal to send commands to screen instead
+of the shell.
+
+For example, “Ctrl-a” then “?”. You should now have the screen
+help page.
+
+### Creating Windows
+
+Command: “Ctrl-a” “c”.
+
+To create a new window, you just use “Ctrl-a” “c”.
+
+This will create a new window for you with your default prompt.
+Your old window is still active.
+
+For example, I can be running top and then open a new window
+to do other things. Top stays running! It is still there. To
+try this for yourself, start up screen and then run top.
+(Note: I have truncated some screens to save space.)
+
+Your top window is still running you just have to switch back
+to it.
+
+### Switching Between Windows: Next and Previous
+
+Command: “Ctrl-a” “n”  OR  “Ctrl-a” “p”
+
+Screen allows you to move forward and back. In the example above,
+you could use “Ctrl-a “n” to get back to top. This command
+switches you to the next window.
+
+The windows work like a carousel and will loop back around
+to your first window.
+
+You can create several windows and toggle through them with
+“Ctrl-a” “n” for the next window or “Ctrl-a” “p” for the
+previous window.
+
+Each process will keep running until you kill that window.
+
+### Switching Between Windows: Numbered Windows
+
+Command: “Ctrl-a” {0-9}
+
+Screen allows you to select the window to display, as it
+numerically assigns ordinals to each screen, starting with
+0 and proceeding to 9. You can directly go to a numbered
+window by doing something like “Ctrl-a” “5”.
+
+### Detaching From Screen
+
+Command: “Ctrl-a” “d”
+
+Detaching is the most powerful part of screen.  Screen allows
+you to detach from a window and reattach later.
+
+If your network connection fails, screen will automatically
+detach your session!
+
+You can detach from the window using “Ctrl-a” “d”.
+
+This will drop you into your shell.
+
+If your network connection fails, screen will automatically
+detach your session!
+
+All screen windows are still there and you can re-attach to
+them later.
+
+### Reattach to Screen
+
+Command: screen -r
+
+If your connection drops or you have detached from a screen,
+you can re-attach by just running:
+
+    $ screen -r
+
+This will re-attach to your screen.
+
+However, if you have multiple screens you may get this:
+
+    $ screen -r
+    There are several suitable screens on:
+    31917.pts-5.office      (Detached)
+    31844.pts-0.office      (Detached)
+
+To re-attach to one of those simply issue a command like:
+
+    screen -r  31844.pts-0.office
+
+### Listing Screen Sessions
+
+Command: screen -ls
+
+If you happen to be using named screen sessions you can simply
+provide the convenience name as an argument to the reattach
+command.
+
+    $ screen -r sessionname
+
+To recall those session names however, as well as to check to
+verify a previously created session still exists you may run
+this command:
+
+    $ screen -ls
