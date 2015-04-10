@@ -50,8 +50,8 @@ function add()
 {
     verify
     salt
-    
-    ssh -n -l ${USER} ${TARGET_HOST} "sudo useradd --create-home --user-group -s /bin/bash -p \$(mkpasswd -m sha-512 ${PASSWD} ${SALT}) ${UNAME}"
+
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo useradd --create-home --user-group -s /bin/bash -p \$(crypt_passwd ${PASSWD} ${SALT}) ${UNAME}"
 
     # create the ssh directory if it does not exist
     ssh -n -l ${USER} ${TARGET_HOST} "sudo mkdir /home/${UNAME}/.ssh/"
@@ -103,6 +103,13 @@ function del()
 {
     ssh -n -l ${USER} ${TARGET_HOST} "sudo userdel ${UNAME}"
     ssh -n -l ${USER} ${TARGET_HOST} "sudo rm -fr /home/${UNAME}"
+}
+
+function deploy_crypt()
+{
+    scp ${SELF_ROOT}/crypt_passwd ${USER}@${TARGET_HOST}:/tmp/
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo mv /tmp/crypt_passwd /usr/local/bin/"
+    ssh -n -l ${USER} ${TARGET_HOST} "sudo chmod 755 /usr/local/bin/crypt_passwd"
 }
 
 function help()

@@ -13,6 +13,15 @@ There are a few fundamental requirements to use this infrastructure:
 - multiple subnets (one for each mock region)
 - one special host acting as a jump server on its own subnet
 
+CentOS does not include mkpasswd; despite claims online that mkpasswd is
+also available via the 'expect' package, this is wholy untrue; the tool
+in the 'expect' package is completely different, is woefully incomplete,
+and lacks parity with other platforms. As such we have taken to write our
+own tool to do this so we have parity across platforms. This script must
+be deployed to all hosts:
+
+    HOST_FILE=hosts.all ./foreachhost ./userman deploy_crypt
+
 ### Setting Root Permissions for the Admin Account
 
 The admin that is used to create other accounts (per customer) must

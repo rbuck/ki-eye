@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+import crypt
+import sys
+
+password = str(sys.argv[1])
+salt = str(sys.argv[2])
+print crypt.crypt(password, "$6$%s" % salt)
+
