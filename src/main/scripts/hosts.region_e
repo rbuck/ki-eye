@@ -23,32 +23,32 @@
 # APPLICATION AND DATABASE SERVICES
 
 # jump server
-jump_server,JS,10.3.88.1,0,
+#jump_server,JS,10.3.88.1,0,
 
 # c101..c104
-region_a,TE,10.3.91.2,0,10.3.91.3
-region_a,SM,10.3.91.3,0,
-region_a,TE,10.3.91.4,0,10.3.91.3
-region_a,SM,10.3.91.5,0,10.3.91.3
+#region_a,TE,10.3.91.2,0,10.3.91.3
+#region_a,SM,10.3.91.3,0,
+#region_a,TE,10.3.91.4,0,10.3.91.3
+#region_a,SM,10.3.91.5,0,10.3.91.3
 
 # c105..c108
-region_b,TE,10.3.92.2,0,10.3.92.3
-region_b,SM,10.3.92.3,0,
-region_b,TE,10.3.92.4,0,10.3.92.3
-region_b,SM,10.3.92.5,0,10.3.92.3
+#region_b,TE,10.3.92.2,0,10.3.92.3
+#region_b,SM,10.3.92.3,0,
+#region_b,TE,10.3.92.4,0,10.3.92.3
+#region_b,SM,10.3.92.5,0,10.3.92.3
 
 # c109..c112
-region_c,TE,10.3.93.2,0,10.3.93.3
-region_c,SM,10.3.93.3,0,
-region_c,TE,10.3.93.4,0,10.3.93.3
-region_c,SM,10.3.93.5,0,10.3.93.3
+#region_c,TE,10.3.93.2,0,10.3.93.3
+#region_c,SM,10.3.93.3,0,
+#region_c,TE,10.3.93.4,0,10.3.93.3
+#region_c,SM,10.3.93.5,0,10.3.93.3
 
 # c113..c116
 # .3 is missing it's ssd disk, investigating
-region_d,TE,10.3.89.2,0,10.3.89.3
-region_d,SM,10.3.89.3,0,
-region_d,TE,10.3.89.4,0,10.3.89.3
-region_d,SM,10.3.89.5,0,10.3.89.3
+#region_d,TE,10.3.89.2,0,10.3.89.3
+#region_d,SM,10.3.89.3,0,
+#region_d,TE,10.3.89.4,0,10.3.89.3
+#region_d,SM,10.3.89.5,0,10.3.89.3
 
 # c117..c120
 # .3 is missing it's ssd disk, investigating

@@ -1,13 +1,13 @@
 # ###############################################
 # IMPORTANT NOTES
 
-# n.b. the SM hosts are the broker hosts
+# n.b. the event numbered hosts are the SM hosts
 
-# n.b. network partition and failure detection
-# is only at the engine level which means that
-# each region may have an equal count of hosts
-# running agents, but it is essential that the
-# count of nodes running must be different.
+# n.b. brokers run on all hosts but the second
+# host in each region is the primordial host.
+# for two region setups, the primordial host
+# of the second region peers to the primordial
+# host of the first region.
 
 # n.b. the sample application is deployed across
 # each of the te hosts.
@@ -22,21 +22,48 @@
 # ###############################################
 # APPLICATION AND DATABASE SERVICES
 
+# bootstrap primordial brokers first, region one then two
+# bootstrap remaining brokers last, region one then two
+
 # jump server
+#jump_server,JS,10.3.88.1,0,
 
-#jumpserver,JS,10.3.88.1,0,
+# ###############################################
 
-# bootstrap brokers first, region one then two
+# c102,c106
+region_a,SM,10.3.91.3,0,
+region_b,SM,10.3.92.3,0,10.3.91.3
 
-region_one,SM,10.3.89.3,1,
-region_two,SM,10.3.90.3,1,10.3.89.3
+# c101,c103,c104
+region_a,SM,10.3.91.5,0,10.3.91.3
+region_a,TE,10.3.91.2,0,10.3.91.3
+region_a,TE,10.3.91.4,0,10.3.91.3
 
-# bootstrap agents last, region one then two
+# c105,c107,c108
+region_b,SM,10.3.92.5,0,10.3.92.3
+region_b,TE,10.3.92.2,0,10.3.92.3
+region_b,TE,10.3.92.4,0,10.3.92.3
 
-region_one,TE,10.3.89.2,0,10.3.89.3
-region_one,TE,10.3.89.4,0,10.3.89.3
-region_one,SM,10.3.89.5,0,10.3.89.3
-region_two,TE,10.3.90.2,0,10.3.90.3
-region_two,TE,10.3.90.4,0,10.3.90.3
-region_two,SM,10.3.90.5,0,10.3.90.3
+# ###############################################
 
+# c109..c112
+region_c,SM,10.3.93.3,0,
+region_c,SM,10.3.93.5,0,10.3.93.3
+region_c,TE,10.3.93.2,0,10.3.93.3
+region_c,TE,10.3.93.4,0,10.3.93.3
+
+# ###############################################
+
+# c114,c118
+region_d,SM,10.3.89.3,0,
+region_e,SM,10.3.90.3,0,10.3.89.3
+
+# c113,c115,c116
+region_d,SM,10.3.89.5,0,10.3.89.3
+region_d,TE,10.3.89.2,0,10.3.89.3
+region_d,TE,10.3.89.4,0,10.3.89.3
+
+# c117,c119,c120
+region_e,SM,10.3.90.5,0,10.3.90.3
+region_e,TE,10.3.90.2,0,10.3.90.3
+region_e,TE,10.3.90.4,0,10.3.90.3

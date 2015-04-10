@@ -1,11 +1,26 @@
-#!/bin/sh
+#!/bin/bash
 
-PROGRAM=$1
-CORE=$2
-BACKTRACE=gdb.backtrace.${CORE}
+set -e
 
-rm -f ${BACKTRACE}
-GDB_COMMANDS="gdb.commands"
+ME=`basename $0`
+SCRIPT_DIR=`dirname $0`
+
+
+: ${SELF_ROOT:=`dirname ${SCRIPT_DIR}`}
+pushd ${SELF_ROOT} >/dev/null
+SELF_ROOT=`pwd`
+popd >/dev/null
+
+function dump()
+{
+    PROGRAM=$2
+    CORE=$3
+    shift 2
+
+    BACKTRACE=gdb.backtrace.${CORE}
+
+    rm -f ${BACKTRACE}
+    GDB_COMMANDS="gdb.commands"
 
 cat <<- __EOF__ >> ${GDB_COMMANDS}
     set logging file ${BACKTRACE}
@@ -25,6 +40,58 @@ cat <<- __EOF__ >> ${GDB_COMMANDS}
     thread apply all bt full
 __EOF__
 
-gdb --batch-silent -x ${GDB_COMMANDS} ${PROGRAM} ${CORE}
-rm ${GDB_COMMANDS}
+    gdb --batch-silent -x ${GDB_COMMANDS} ${PROGRAM} ${CORE}
+    rm ${GDB_COMMANDS}
+}
 
+function help()
+{
+  cat <<- __EOF__
+
+  REQUIREMENTS
+
+  This script only runs on Linux or Mac and requires GDB on your path.
+
+  DESCRIPTION
+
+  This script extracts a stack trace from a core file by running GDB in
+  non-interactive mode. The script will prompt GDB to provide the stack
+  trace, the list of dependent libraries, and the register values.
+
+  ENVIRONMENT VARIABLES
+
+  None.
+
+  EXECUTION
+
+  To generate trace information run this script as follows:
+
+  ${ME} dump
+
+  OTHER
+
+  All functions of this script print out the elapsed time to run as the last
+  output.
+
+__EOF__
+}
+
+if [ $# -eq 0 ]; then
+    echo -e "\nSyntax:\n\t${ME} [<command> ...]\n\
+\nCommands include:\
+\n\t help        displays extended help and explanations\
+\n\t dump        dumps trace information
+\n"
+fi
+
+while [ $# -gt 0 ]
+do
+    CMD=$1
+    time {
+      ${CMD} $@
+      shift
+    }
+    echo ""
+done
+
+exit
