@@ -1,3 +1,7 @@
+# ki eye
+
+[<img src="https://travis-ci.org/rbuck/ki-eye.svg?branch=master" alt="Build Status" />](http://travis-ci.org/rbuck/ki-eye)
+
 # Introduction
 
 Tools to manage and reconfigure mock multi-region environments
