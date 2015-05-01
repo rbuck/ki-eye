@@ -1,0 +1,22 @@
+#!/bin/bash
+
+if [ -e /ssd ];
+then
+    sudo umount /ssd
+    sudo rm -fr /ssd
+fi
+
+sudo sed -i.bak '/# SSD-Begin/,/# SSD-End/d' /etc/fstab
+
+sudo lsblk
+sudo file -s /dev/sdb
+sudo mkfs -t ext4 /dev/sdb
+sudo mkdir /ssd
+sudo mount -o defaults,discard,noatime,nodiratime,noexec /dev/sdb /ssd
+sudo chown -R nuodb:nuodb /ssd
+sudo cp /etc/fstab /etc/fstab.orig
+sudo sh -c "cat >> /etc/fstab" <<- EOF
+        # SSD-Begin
+        /dev/sdb /ssd ext4 defaults,discard,noatime,nodiratime,noexec 0 0
+        # SSD-End
+EOF
