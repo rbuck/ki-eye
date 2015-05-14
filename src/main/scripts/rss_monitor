@@ -1,24 +1,28 @@
 #!/bin/sh
 
-CUR_PID=$(ps -AH v | grep -i 'nuodb --connect-key' | grep -v grep | awk -F" " '{print $1}')
-CUR_HOST=$(hostname)
-THRESH=16000000
+: ${CUR_HOST:="$(hostname)"}
+: ${CUR_PID:="$(ps -AH v | grep -i 'nuodb --connect-key' | grep -v grep | awk -F" " '{print $1}')"}
+: ${THRESH:=24000000}
 RSS_LOG=/tmp/rss_mon.log
 
 while true
 do
 
-  RES_MEM=$(ps -H v --pid $CUR_PID | awk -F" " '{print $8}')
-  CUR_RES_MEM=$(echo $RES_MEM | awk '{print $NF}')
   CUR_TIME=$(date +%FT%T)
+  if [ "x$CUR_PID" != "x" ] ; then
+     RES_MEM=$(ps -H v --pid $CUR_PID | awk -F" " '{print $8}')
+     CUR_RES_MEM=$(echo $RES_MEM | awk '{print $NF}')
 
-  if [ $CUR_RES_MEM -ge $THRESH ]
-  then
-    echo "[$CUR_TIME] CRITICAL|NuoDB Out of Memory\nRES MEM THRESH: $THRESH\nCURRENT RES MEM: $CUR_RES_MEM\nPID: $CUR_PID" >> $RSS_LOG
-    sudo gcore -o ~/$CUR_TIME-$CUR_HOST-nuodb-core $CUR_PID
-    exit 2
+     if [ $CUR_RES_MEM -ge $THRESH ]
+     then
+       echo "[$CUR_TIME] CRITICAL|NuoDB Out of Memory\nRES MEM THRESH: $THRESH\nCURRENT RES MEM: $CUR_RES_MEM\nPID: $CUR_PID" >> $RSS_LOG
+       sudo gcore -o ~/$CUR_TIME-$CUR_HOST-nuodb-core $CUR_PID
+       exit 2
+     else
+       echo "[$CUR_TIME] OK|NuoDB is running\nRES MEM THRESH: $THRESH\nCURRENT RES MEM: $CUR_RES_MEM\nPID: $CUR_PID" >> $RSS_LOG
+     fi
   else
-    echo "[$CUR_TIME] OK|NuoDB is running\nRES MEM THRESH: $THRESH\nCURRENT RES MEM: $CUR_RES_MEM\nPID: $CUR_PID" >> $RSS_LOG
+     echo "[$CUR_TIME] WARN|NuoDB is not running." >> $RSS_LOG
   fi
 
   sleep 15
